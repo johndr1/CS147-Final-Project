@@ -4,6 +4,7 @@
 #include <Adafruit_SGP30.h>
 
 #include <HttpClient.h>
+#include <Arduino_JSON.h>
 #include <WiFi.h>
 #include <inttypes.h>
 #include <stdio.h>
@@ -17,6 +18,7 @@
 
 char ssid[50];  // network SSID name
 char pass[50];  // network password
+char apiKey[50]; // weather api key
 
 void nvs_access() {
   // Initialize NVS
@@ -40,11 +42,13 @@ void nvs_access() {
   }
   else {
     Serial.printf("Done\n");
-    Serial.printf("Retrieving SSID/PASSWD\n");
+    Serial.printf("Retrieving SSID/PASSWD/apiKey\n");
     size_t ssid_len;
     size_t pass_len;
+    size_t apiKey_len;
     err = nvs_get_str(my_handle, "ssid", ssid, &ssid_len);
     err |= nvs_get_str(my_handle, "pass", pass, &pass_len);
+    err |= nvs_get_str(my_handle, "apiKey", apiKey, &apiKey_len);
     switch (err) {
       case ESP_OK:
         Serial.printf("Done\n");
@@ -65,7 +69,7 @@ void nvs_access() {
 void setup() {
   Serial.begin(9600);
   delay(1000);
-  // Retrieve SSID/PASSWD from flash
+  // Retrieve SSID/PASSWD/apiKey from flash
   nvs_access();
 
   // Connect to WiFi network
