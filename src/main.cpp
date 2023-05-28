@@ -1,7 +1,7 @@
 #include <Arduino.h>
 
 #include <TinyGPS++.h>
-#include <SparkFun_SGP40_Arduino_Library.h>
+#include <Adafruit_SGP30.h>
 
 #include <HttpClient.h>
 #include <WiFi.h>
