@@ -1,9 +1,11 @@
 #include <Arduino.h>
 
+#include <SoftwareSerial.h>
 #include <TinyGPS++.h>
+#include <Wire.h>
 #include <Adafruit_SGP30.h>
 
-#include <HttpClient.h>
+#include <HTTPClient.h>
 #include <Arduino_JSON.h>
 #include <WiFi.h>
 #include <inttypes.h>
@@ -18,7 +20,15 @@
 
 char ssid[50];  // network SSID name
 char pass[50];  // network password
+
 char apiKey[50]; // weather api key
+float latitude; // latitude for weather api
+float longitude; // longitude for weather api
+
+Adafruit_SGP30 sgp;
+
+const int AQ_BUTTON = 0;
+const int WEATHER_BUTTON = 35;
 
 void nvs_access() {
   // Initialize NVS
@@ -65,10 +75,63 @@ void nvs_access() {
   nvs_close(my_handle);
 }
 
+String httpGET(const char* hostName) {
+  WiFiClient client;
+  HTTPClient http;
+
+  http.begin(hostName);
+
+  int responseCode = http.GET();
+
+  String body = "{}";
+
+  if(responseCode > 0) {
+    //Serial.print("Got Response Code: ");
+    //Serial.println(responseCode);
+    body = http.getString();
+  }
+  else {
+    Serial.print("Got error code: ");
+    Serial.println(responseCode);
+  }
+  http.end();
+
+  return body;
+}
+
+void getWeatherData() {
+  // will use GPS to get lat and long, but for now just hardcoded
+  latitude = 33.644510345086914;
+  longitude = -117.82569552931159;
+
+  char apiPath[150];
+  sprintf(apiPath, "https://api.openweathermap.org/data/2.5/weather?lat=%.04f&lon=%.04f&appid=%s&units=imperial", latitude, longitude, apiKey);
+
+  String apiResponse;
+  if(WiFi.status() == WL_CONNECTED) {
+    apiResponse = httpGET(apiPath);
+
+    JSONVar data = JSON.parse(apiResponse);
+
+    if(JSON.typeof(data) == "undefined") {
+      Serial.println("Parsing input failed.");
+      return;
+    }
+
+    Serial.print("Description: "); Serial.println(data["weather"][0]["main"]);
+    Serial.print("Temperature: "); Serial.print(data["main"]["temp"]); Serial.println(" degrees F");
+    Serial.print("Pressure: "); Serial.print(data["main"]["pressure"]); Serial.println(" hPa");
+    Serial.print("Humidity: "); Serial.print(data["main"]["humidity"]); Serial.println("%");
+    Serial.print("Wind Speed: "); Serial.print(data["wind"]["speed"]); Serial.println(" mph");
+  }
+}
 
 void setup() {
   Serial.begin(9600);
+  pinMode(AQ_BUTTON, INPUT_PULLUP);
+  pinMode(WEATHER_BUTTON, INPUT_PULLUP);
   delay(1000);
+  
   // Retrieve SSID/PASSWD/apiKey from flash
   nvs_access();
 
@@ -87,13 +150,62 @@ void setup() {
   }
 
   Serial.println("");
-  Serial.println("WiFi connected");
-  Serial.println("IP address: ");
-  Serial.println(WiFi.localIP());
-  Serial.println("MAC address: ");
-  Serial.println(WiFi.macAddress());
+  Serial.println("WiFi connected\n");
+  //Serial.println("IP address: ");
+  //Serial.println(WiFi.localIP());
+  //Serial.println("MAC address: ");
+  //Serial.println(WiFi.macAddress());
+
+  if (!sgp.begin()) {
+    Serial.println("Sensor not found.");
+    while(1);
+  }
+
+  Serial.println("Application Starting Now\n");
 }
 
 void loop() {
-  // put your main code here, to run repeatedly:
+  if (!digitalRead(AQ_BUTTON)) {
+    Serial.println("Fetching Air Quality Data...");
+
+    if (!sgp.IAQmeasure()) {
+      Serial.println("Measurement failed");
+      return;
+    }
+
+    Serial.print("TVOC "); Serial.print(sgp.TVOC); Serial.print(" ppb\t");
+    Serial.print("eCO2 "); Serial.print(sgp.eCO2); Serial.println(" ppm");
+
+    if (!sgp.IAQmeasureRaw()) {
+      Serial.println("Raw Measurement failed");
+      return;
+    }
+
+    Serial.print("Raw H2 "); Serial.print(sgp.rawH2); Serial.print(" \t");
+    Serial.print("Raw Ethanol "); Serial.print(sgp.rawEthanol); Serial.println("");
+
+    delay(1000);
+
+    while(!digitalRead(AQ_BUTTON)) {
+      delay(250);
+    }
+
+    Serial.println("Returning to Home\n");
+  }
+
+  if (!digitalRead(WEATHER_BUTTON)) {
+    Serial.println("Fetching Local Weather Data...");
+
+    getWeatherData();
+
+    delay(1000);
+
+    while(!digitalRead(WEATHER_BUTTON)) {
+      delay(250);
+    }
+
+    Serial.println("Returning to Home\n");
+  }
+
+  delay(100);
 }
