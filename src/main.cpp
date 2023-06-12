@@ -1,7 +1,5 @@
 #include <Arduino.h>
 
-#include <SoftwareSerial.h>
-#include <TinyGPS++.h>
 #include <Wire.h>
 #include <Adafruit_SGP30.h>
 
